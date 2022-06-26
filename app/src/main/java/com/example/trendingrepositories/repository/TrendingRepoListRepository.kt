@@ -17,8 +17,10 @@ import retrofit2.Response
 
 
 class TrendingRepoListRepository(private val repositoryDAO: RepositoryDAO) {
+    //Getting Data From RoomDatabase
     val repoListFromDB=repositoryDAO.getRepositories()
 
+    //Getting Data From Api
     fun getRepositoryDataFromApi(onCompleteFetching: onCompleteFetching, mainActivity: LifecycleOwner){
         val apiServices: ApiServices = RetrofitInstance.getRetrofitInstance()
             .create(ApiServices::class.java)
@@ -30,11 +32,14 @@ class TrendingRepoListRepository(private val repositoryDAO: RepositoryDAO) {
             }
             responseLiveData.observe(mainActivity, Observer {
                 if(it.isSuccessful){
+                    //Once got Success as Response from Api.Sending Data to Interface
                     onCompleteFetching.onSuccess(it.body() as ArrayList<TrendingRepoListItem>)
                     CoroutineScope(Dispatchers.IO).launch {
+                        //Calling function to Store Api Response Data into Room Database
                         inserDataIntoOffline(it.body())
                     }
                 }else{
+                    //If Api response is not successful
                     var error:String
                     when(it.code()){
                         404->error="404  Not found web api"
@@ -45,6 +50,7 @@ class TrendingRepoListRepository(private val repositoryDAO: RepositoryDAO) {
                         302 ->error="302 RemovedResourceFound"
                         else -> error=it.code().toString()+it.errorBody()
                     }
+                    //Setting Error response to Interface
                    onCompleteFetching.onError(error)
                 }
             })
@@ -53,9 +59,12 @@ class TrendingRepoListRepository(private val repositoryDAO: RepositoryDAO) {
         }
     }
 
+    //Storing Data into Room Database
     private suspend fun inserDataIntoOffline(body: TrendingRepoList?) {
         if (body != null) {
+            //Deleting Existing Data in Room Database
             repositoryDAO.deleteAllRepositories()
+            //Saving Data into Room Database
             repositoryDAO.saveRepositories(body as ArrayList<TrendingRepoListItem>)
         }
     }
