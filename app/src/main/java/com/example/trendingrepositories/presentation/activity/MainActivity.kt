@@ -8,6 +8,7 @@ import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
@@ -45,14 +46,23 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         mainBinding=DataBindingUtil.setContentView(this, R.layout.activity_main)
 
+        //Setting Toolbar
         setSupportActionBar(mainBinding.toolbar)
+
+        //Initializing DAO of RoomDatabase
         var dao=RepositoryDatabase.getInstance(application).repositoryDAO
+
+        //Initializing Repository , passing DAO as a parameter
         val repo=TrendingRepoListRepository(dao)
+
+        //Initializing ModelViewFactory ,passing repo as parameter
         val factory= MainActivityViewModelFactory(repo)
 
+        //Initializing Viewmodel
         RepoViewModel= ViewModelProvider(this,factory).get(MainActivityViewModel::class.java)
         mainBinding.lifecycleOwner=this
 
+        //Onclick Listener for Swipe(Updating data when refresh)
         mainBinding.refreshLayout.setOnRefreshListener {
            if(!filterOn){
                CoroutineScope(Dispatchers.Main).launch {
@@ -65,6 +75,8 @@ class MainActivity : AppCompatActivity() {
            }
             mainBinding.refreshLayout.isRefreshing = false
         }
+
+        //Initializing Recyclerview to show trending Repositories
         initRecyclerView()
     }
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -74,6 +86,7 @@ class MainActivity : AppCompatActivity() {
             val searchView = MenuItemCompat.getActionView(searchViewItem) as SearchView
             searchView.isIconified=true
 
+        //OnClick Listener for Search View in Toolbar as Option Menu
             searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
                 override fun onQueryTextSubmit(query: String): Boolean {
                     searchView.clearFocus()
@@ -89,6 +102,7 @@ class MainActivity : AppCompatActivity() {
                         })
                         adapter.notifyDataSetChanged()
                     }else{
+                        //Passing User Entered Data for filtering
                         filterOn=true
                         adapter.filter.filter(newText)
                     }
@@ -116,11 +130,13 @@ class MainActivity : AppCompatActivity() {
     }
     @RequiresApi(Build.VERSION_CODES.M)
     private fun checkConnectivity() {
+        //Checking Internet Connection
        if(InternetConnection().isOnline(this)){
            CoroutineScope(Dispatchers.Main).launch {
                getDataFromOnline()
            }
        }else{
+           //Checking Data in room database
            checkDataInLocal()
        }
     }
@@ -164,22 +180,36 @@ class MainActivity : AppCompatActivity() {
             }
             override fun onSuccess(data: ArrayList<TrendingRepoListItem>) {
                 if (data != null) {
-                    if(data.size>=1){
-                        mainBinding.toolbar.menu.findItem(R.id.app_bar_search).isVisible=true                    }
+                    if(data.size==0){
+                        showToastMessage();
+                    }
+                    else if (data.size >= 1) {
+                        //Showing search bar if  data is present
+                        mainBinding.toolbar.menu.findItem(R.id.app_bar_search).isVisible = true
+                    }
                     repoCacheData.clear()
                     repoCacheData.addAll(data)
-                    adapter.setReposList(data,{ selectedRepo: TrendingRepoListItem ->
+                    adapter.setReposList(data, { selectedRepo: TrendingRepoListItem ->
                         onSelectedRepo(
                             selectedRepo
                         )
                     })
                     adapter.notifyDataSetChanged()
                     mProgressDialog.dismiss()
+                }else{
+                    mProgressDialog.dismiss()
                 }
             }
+
         }
+        //Fetching Data from ViewModel
         RepoViewModel.getAllRepository(mainBinding.lifecycleOwner as MainActivity,instance)
     }
+
+    private fun showToastMessage() {
+        Toast.makeText(this, "No Data is Present", Toast.LENGTH_SHORT).show()
+    }
+
     @RequiresApi(Build.VERSION_CODES.M)
     fun reloadData(view: View) {
         if(InternetConnection().isOnline(this)){
@@ -189,7 +219,7 @@ class MainActivity : AppCompatActivity() {
 
         }
     }
-
+    //Getting Selected Data from RecyclerView
     fun onSelectedRepo(trendingRepoListItem: TrendingRepoListItem){
         val gson = Gson()
         val myJson = gson.toJson(trendingRepoListItem)
